@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Platzhalter from '../components/Platzhalter';
 import NavButton from '../components/NavButton';
 import useQuiz from '../hooks/useQuiz';
+import { speichereResultat } from '../services/speicher';
 import { colors } from '../theme';
 
 // Screen 3 – Frage (Special Feature: Fragen aus der API)
@@ -22,19 +23,23 @@ export default function FrageScreen({ navigation, route }) {
     navigation.setOptions({ title: titel });
   }, [navigation, quiz.status, quiz.nr, quiz.anzahl, quiz.punkte]);
 
-  // Nach der letzten Frage: Resultat ersetzt die Frage (replace) → kein Zurück ins beendete Quiz
+  // Nach der letzten Frage: Resultat zuerst lokal speichern (S6), dann ersetzt das Resultat die Frage (replace)
   useEffect(() => {
-    if (quiz.status === 'fertig') {
-      navigation.replace('Resultat', {
-        kategorie,
-        kategorieId,
-        schwierigkeit,
-        anzahl: quiz.anzahl,
-        richtige: quiz.richtige,
-        punkte: quiz.punkte,
-        rechenzeile: quiz.rechenzeile,
-      });
-    }
+    if (quiz.status !== 'fertig') return;
+    const resultat = {
+      kategorie,
+      kategorieId,
+      schwierigkeit,
+      anzahl: quiz.anzahl,
+      richtige: quiz.richtige,
+      punkte: quiz.punkte,
+    };
+    speichereResultat(resultat)
+      .then(() => true)
+      .catch(() => false) // Speichern fehlgeschlagen: Resultat trotzdem zeigen, nicht abstürzen
+      .then((gespeichert) =>
+        navigation.replace('Resultat', { ...resultat, rechenzeile: quiz.rechenzeile, gespeichert })
+      );
   }, [quiz.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Android-Zurück öffnet dasselbe Modal wie ✕ (Konzept Kap. 6.3), statt das Quiz direkt zu verlassen
