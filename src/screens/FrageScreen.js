@@ -1,87 +1,102 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect } from 'react';
 import { ActivityIndicator, BackHandler } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Platzhalter from '../components/Platzhalter';
 import NavButton from '../components/NavButton';
-import { ladeFragen } from '../services/triviaApi';
+import useQuiz from '../hooks/useQuiz';
 import { colors } from '../theme';
 
 // Screen 3 – Frage (Special Feature: Fragen aus der API)
-// Stand S4: lädt die Fragen wirklich aus der Open Trivia DB und zeigt «lädt», «Fehler» oder die erste Frage.
-// Die eigentliche Quiz-Logik (Antworten prüfen, Punkte) kommt in S5, das Design in T4.
+// Stand S5: die Runde ist komplett spielbar. Das Aussehen ist noch ein Platzhalter – das Design kommt mit T4 (Tanushree).
+// Alles, was die Runde steuert, liegt im Hook useQuiz (src/hooks/useQuiz.js).
 export default function FrageScreen({ navigation, route }) {
-  // Parameter vom Quiz-Setup oder vom Schnellstart
   const { kategorie, kategorieId, schwierigkeit, anzahl } = route.params;
+  const quiz = useQuiz({ anzahl, kategorieId, schwierigkeit });
 
-  const [fragen, setFragen] = useState(null);
-  const [fehler, setFehler] = useState(null);
-  const [laden, setLaden] = useState(true);
-  const [versuch, setVersuch] = useState(0); // «Erneut versuchen» erhöht den Zähler → lädt neu
-
-  // Titel im Header setzen
+  // Header: «Frage 3 / 10 · 40 Punkte»
   useLayoutEffect(() => {
-    navigation.setOptions({ title: laden ? 'Quiz wird vorbereitet' : `Frage 1 / ${anzahl}` });
-  }, [navigation, anzahl, laden]);
+    const titel =
+      quiz.status === 'laden' || quiz.status === 'fehler'
+        ? 'Quiz wird vorbereitet'
+        : `Frage ${quiz.nr} / ${quiz.anzahl} · ${quiz.punkte} Punkte`;
+    navigation.setOptions({ title: titel });
+  }, [navigation, quiz.status, quiz.nr, quiz.anzahl, quiz.punkte]);
 
-  // Alle Fragen der Runde mit EINER Anfrage laden – danach braucht die Runde kein Netz mehr
+  // Nach der letzten Frage: Resultat ersetzt die Frage (replace) → kein Zurück ins beendete Quiz
   useEffect(() => {
-    let aktiv = true; // verhindert setState, wenn der Screen inzwischen geschlossen wurde
-    setLaden(true);
-    setFehler(null);
-    ladeFragen({ anzahl, kategorieId, schwierigkeit })
-      .then((geladen) => aktiv && setFragen(geladen))
-      .catch((e) => aktiv && setFehler(e.meldung ?? 'Etwas ist schiefgelaufen.'))
-      .finally(() => aktiv && setLaden(false));
-    return () => {
-      aktiv = false;
-    };
-  }, [anzahl, kategorieId, schwierigkeit, versuch]);
+    if (quiz.status === 'fertig') {
+      navigation.replace('Resultat', {
+        kategorie,
+        kategorieId,
+        schwierigkeit,
+        anzahl: quiz.anzahl,
+        richtige: quiz.richtige,
+        punkte: quiz.punkte,
+        rechenzeile: quiz.rechenzeile,
+      });
+    }
+  }, [quiz.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Android-Zurück öffnet dasselbe Modal wie ✕ (Konzept Kap. 6.3), statt das Quiz direkt zu verlassen
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
         navigation.navigate('QuizAbbrechen');
-        return true; // true = Zurück-Taste ist erledigt, nichts weiter tun
+        return true;
       });
       return () => sub.remove();
     }, [navigation])
   );
 
-  // Zustand «lädt»
-  if (laden) {
+  const abbrechen = () => navigation.navigate('QuizAbbrechen');
+
+  if (quiz.status === 'laden') {
     return (
       <Platzhalter titel="Fragen werden geladen …" text={`${anzahl} Fragen · ${kategorie} · ${schwierigkeit}`}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <NavButton titel="✕ Quiz abbrechen" variante="rand" onPress={() => navigation.navigate('QuizAbbrechen')} />
+        <NavButton titel="✕ Quiz abbrechen" variante="rand" onPress={abbrechen} />
       </Platzhalter>
     );
   }
 
-  // Zustand «Fehler» (kein Netz, Timeout, zu wenig Fragen …)
-  if (fehler) {
+  if (quiz.status === 'fehler') {
     return (
-      <Platzhalter titel="⚠ Keine Fragen" text={fehler}>
-        <NavButton titel="Erneut versuchen" onPress={() => setVersuch((v) => v + 1)} />
+      <Platzhalter titel="⚠ Keine Fragen" text={quiz.fehler}>
+        <NavButton titel="Erneut versuchen" onPress={quiz.erneutLaden} />
         <NavButton titel="Zurück zum Setup" variante="rand" onPress={() => navigation.navigate('QuizSetup')} />
       </Platzhalter>
     );
   }
 
-  // Erfolg: vorerst nur die erste Frage als Text anzeigen (Kontrolle, dass die API-Daten ankommen)
-  const erste = fragen[0];
-  const antworten = erste.antworten.map((a, i) => `${'ABCD'[i]}  ${a}`).join('\n');
+  if (!quiz.frage) return null; // kurz beim Wechsel zum Resultat
+
+  // Feedback nach der Antwort: ✓/✗ immer mit Text, nicht nur Farbe (Konzept Kap. 8.3)
+  if (quiz.status === 'feedback') {
+    const { richtig, punkte } = quiz.letztesErgebnis;
+    const kopf = richtig
+      ? `✓ Richtig! +${punkte} Punkte`
+      : `✗ Leider falsch. Richtig ist: ${quiz.frage.richtig}`;
+    const liste = quiz.frage.antworten
+      .map((a, i) => {
+        const markierung = a === quiz.frage.richtig ? '✓ richtig' : a === quiz.gewaehlt ? '✗ deine Antwort' : '';
+        return `${'ABCD'[i]}  ${a}  ${markierung}`;
+      })
+      .join('\n');
+    const istLetzte = quiz.nr === quiz.anzahl;
+    return (
+      <Platzhalter titel={kopf} text={`${quiz.frage.frage}\n\n${liste}`}>
+        <NavButton titel={istLetzte ? 'Zum Resultat ›' : 'Weiter ›'} onPress={quiz.weiter} />
+      </Platzhalter>
+    );
+  }
+
+  // Frage offen: jede Antwort ist ein Button, nur die erste Antwort zählt
   return (
-    <Platzhalter
-      titel={`${fragen.length} Fragen geladen`}
-      text={`${kategorie} · ${schwierigkeit}\n\nFrage 1: ${erste.frage}\n\n${antworten}`}
-    >
-      <NavButton
-        titel="Letzte Frage beantwortet → Resultat"
-        // replace: Frage wird durch Resultat ersetzt → kein Zurück ins beendete Quiz
-        onPress={() => navigation.replace('Resultat', { kategorie, kategorieId, schwierigkeit, anzahl, richtige: 4 })}
-      />
-      <NavButton titel="✕ Quiz abbrechen" variante="rand" onPress={() => navigation.navigate('QuizAbbrechen')} />
+    <Platzhalter titel={`Frage ${quiz.nr}`} text={quiz.frage.frage}>
+      {quiz.frage.antworten.map((a, i) => (
+        <NavButton key={a} titel={`${'ABCD'[i]}  ${a}`} variante="rand" onPress={() => quiz.antworten(a)} />
+      ))}
+      <NavButton titel="✕ Quiz abbrechen" variante="rand" onPress={abbrechen} />
     </Platzhalter>
   );
 }

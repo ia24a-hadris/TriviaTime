@@ -3,10 +3,15 @@ import NavButton from '../components/NavButton';
 
 // Screen 4 – Resultat
 export default function ResultatScreen({ navigation, route }) {
-  const { kategorie, kategorieId, schwierigkeit, anzahl, richtige } = route.params;
+  const { kategorie, kategorieId, schwierigkeit, anzahl, richtige, punkte, rechenzeile } = route.params;
+
+  // Rechenzeile «So zählt es» erklärt das Punktesystem (Lernförderlichkeit, Konzept Kap. 6.4)
+  const text = `${richtige} / ${anzahl} richtig · ${punkte ?? 0} Punkte\n${kategorie} · ${schwierigkeit}${
+    rechenzeile ? `\n\nSo zählt es: ${rechenzeile}` : ''
+  }`;
 
   return (
-    <Platzhalter titel="Resultat" text={`${richtige} / ${anzahl} richtig · ${kategorie} · ${schwierigkeit}`}>
+    <Platzhalter titel="Resultat" text={text}>
       <NavButton
         titel="Nochmals spielen"
         // replace: neue Runde mit denselben Einstellungen
