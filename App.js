@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
   Nunito_400Regular,
@@ -10,9 +10,9 @@ import {
   Nunito_900Black,
 } from '@expo-google-fonts/nunito';
 
-import { colors, fonts, sizes } from './src/theme';
+import AppNavigator from './src/navigation/AppNavigator';
 
-// Startpunkt der App. Die Navigation (Tab-Bar + Stack) kommt im Paket S3 dazu.
+// Startpunkt der App: Schrift laden, dann die Navigation anzeigen.
 export default function App() {
   const [fontsLoaded] = useFonts({
     Nunito_400Regular,
@@ -27,40 +27,13 @@ export default function App() {
     return null;
   }
 
+  // Genau ein NavigationContainer pro App – er ist die äusserste Hülle.
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Trivia Time</Text>
-          <Text style={styles.text}>Setup erfolgreich – die App läuft in Expo Go.</Text>
-        </View>
-        <StatusBar style="dark" />
-      </SafeAreaView>
+      <NavigationContainer>
+        <AppNavigator />
+      </NavigationContainer>
+      <StatusBar style="dark" />
     </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
-    padding: sizes.screenPadding,
-  },
-  card: {
-    backgroundColor: colors.gameBackground,
-    borderRadius: 20,
-    padding: 24,
-    gap: sizes.gap,
-  },
-  title: {
-    fontFamily: fonts.black,
-    fontSize: 32,
-    color: colors.accent,
-  },
-  text: {
-    fontFamily: fonts.regular,
-    fontSize: 16,
-    color: '#FFFFFF',
-  },
-});
