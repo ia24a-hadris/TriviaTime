@@ -11,6 +11,7 @@ export default function QuizSetupScreen({ navigation }) {
         onPress={() =>
           navigation.navigate('Frage', {
             kategorie: 'History',
+            kategorieId: 23, // ID aus der Open Trivia DB (ladeKategorien)
             schwierigkeit: 'Leicht',
             anzahl: 5,
           })

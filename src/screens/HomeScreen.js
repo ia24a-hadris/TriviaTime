@@ -13,6 +13,7 @@ export default function HomeScreen({ navigation }) {
         onPress={() =>
           navigation.navigate('Frage', {
             kategorie: 'Science & Nature',
+            kategorieId: 17, // ID aus der Open Trivia DB (ladeKategorien)
             schwierigkeit: 'Mittel',
             anzahl: 10,
           })
