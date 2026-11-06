@@ -1,50 +1,73 @@
-import { useCallback, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import { ActivityIndicator } from 'react-native';
 import Platzhalter from '../components/Platzhalter';
 import NavButton from '../components/NavButton';
-import { ladeVerlauf, lokaleBestenliste } from '../services/speicher';
-import { machbarkeitstest } from '../services/onlineBestenliste';
+import useBestenliste from '../hooks/useBestenliste';
+import { colors } from '../theme';
 
 // Screen 5 – Bestenliste (eigener Tab)
-// Stand S6: zeigt die lokale Bestenliste aus dem Speicher (Plan B). Online-Top-20 kommt mit S7, das Design mit T5.
+// Stand S7: Umschalter Online (Top 20) / Lokal mit den Zuständen lädt, kein Netz und leer.
+// Das Design (Siegertreppchen, Liste) kommt mit T5 (Tanushree) – sie benutzt dafür useBestenliste().
 export default function BestenlisteScreen({ navigation }) {
-  const [liste, setListe] = useState(null);
-  const [testText, setTestText] = useState(null); // Ergebnis des Machbarkeitstests (S2)
+  const b = useBestenliste();
+  const quizStarten = () => navigation.navigate('Spielen', { screen: 'QuizSetup' });
 
-  useFocusEffect(
-    useCallback(() => {
-      let aktiv = true;
-      ladeVerlauf().then((v) => aktiv && setListe(lokaleBestenliste(v)));
-      return () => {
-        aktiv = false;
-      };
-    }, [])
-  );
+  // Umschalter (nur wenn Firebase eingerichtet ist – sonst Plan B: nur lokal)
+  const umschalter = b.onlineMoeglich ? (
+    <>
+      <NavButton
+        titel={b.modus === 'online' ? '● Online (Top 20)' : 'Online (Top 20)'}
+        variante={b.modus === 'online' ? 'voll' : 'rand'}
+        onPress={() => b.setModus('online')}
+      />
+      <NavButton
+        titel={b.modus === 'lokal' ? '● Lokal' : 'Lokal'}
+        variante={b.modus === 'lokal' ? 'voll' : 'rand'}
+        onPress={() => b.setModus('lokal')}
+      />
+    </>
+  ) : null;
 
-  if (liste == null) return null;
+  const titel = b.modus === 'online' ? 'Bestenliste (online)' : 'Bestenliste (lokal)';
 
-  const text =
-    liste.length === 0
-      ? 'Noch keine Einträge. Spiel ein Quiz und hol dir Platz 1!'
-      : liste
-          .slice(0, 8)
-          .map((e, i) => `${i + 1}.  ${e.nickname}  ·  ${e.punkte} Punkte  ·  ${e.kategorie}`)
-          .join('\n');
+  if (b.status === 'laden') {
+    return (
+      <Platzhalter titel={titel} text="⟳ Bestenliste wird geladen …">
+        <ActivityIndicator size="large" color={colors.primary} />
+        {umschalter}
+      </Platzhalter>
+    );
+  }
 
-  const testen = async () => {
-    setTestText('Online-Verbindung wird getestet …');
-    setTestText(await machbarkeitstest());
-  };
+  if (b.status === 'fehler') {
+    return (
+      <Platzhalter
+        titel="⚠ Kein Netz"
+        text="Die Online-Bestenliste ist gerade nicht erreichbar. Deine eigenen Resultate sind auf dem Handy gespeichert."
+      >
+        <NavButton titel="Erneut versuchen" onPress={b.neuLaden} />
+        <NavButton titel="Lokale Resultate anzeigen" variante="rand" onPress={() => b.setModus('lokal')} />
+      </Platzhalter>
+    );
+  }
+
+  if (b.status === 'leer') {
+    return (
+      <Platzhalter titel="Noch keine Einträge" text="Spiel ein Quiz und hol dir Platz 1!">
+        <NavButton titel="Quiz starten" onPress={quizStarten} />
+        {umschalter}
+      </Platzhalter>
+    );
+  }
+
+  const text = b.eintraege
+    .slice(0, 10)
+    .map((e, i) => `${i + 1}.  ${e.nickname}${e.istDu ? ' (Du)' : ''}  ·  ${e.punkte} Punkte  ·  ${e.kategorie}`)
+    .join('\n');
 
   return (
-    <Platzhalter titel="Bestenliste (lokal)" text={testText ? `${text}\n\n${testText}` : text}>
-      {/* Vorübergehend für den Machbarkeitstest S2 – wird mit S7 / T5 wieder entfernt */}
-      <NavButton titel="Online-Verbindung testen (S2)" variante="rand" onPress={testen} />
-      <NavButton
-        titel="Quiz starten"
-        // In den Tab «Spielen» wechseln und dort direkt das Quiz-Setup öffnen
-        onPress={() => navigation.navigate('Spielen', { screen: 'QuizSetup' })}
-      />
+    <Platzhalter titel={titel} text={text}>
+      {umschalter}
+      <NavButton titel="Aktualisieren" variante="rand" onPress={b.neuLaden} />
     </Platzhalter>
   );
 }

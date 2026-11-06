@@ -10,7 +10,9 @@ import {
   Nunito_900Black,
 } from '@expo-google-fonts/nunito';
 
+import { useEffect } from 'react';
 import AppNavigator from './src/navigation/AppNavigator';
+import { sendeWarteschlange } from './src/services/onlineBestenliste';
 
 // Startpunkt der App: Schrift laden, dann die Navigation anzeigen.
 export default function App() {
@@ -21,6 +23,11 @@ export default function App() {
     Nunito_800ExtraBold,
     Nunito_900Black,
   });
+
+  // Beim App-Start: Punkte nachsenden, die offline entstanden sind (Konzept Kap. 5). Fehler sind hier egal.
+  useEffect(() => {
+    sendeWarteschlange().catch(() => {});
+  }, []);
 
   // Erst rendern, wenn die Schrift geladen ist (sonst kurz falsche Schrift oder Fehler).
   if (!fontsLoaded) {

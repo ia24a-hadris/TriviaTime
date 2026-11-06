@@ -61,8 +61,19 @@ export async function ladeTopScores(kategorieId = null, max = 20) {
       ? query(sammlung, orderBy('punkte', 'desc'), limit(max))
       : query(sammlung, where('kategorieId', '==', kategorieId), limit(200));
   const ergebnis = await mitZeitlimit(getDocs(abfrage));
-  const liste = ergebnis.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const liste = ergebnis.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((e) => e.kategorieId !== 0); // Einträge vom Machbarkeitstest nicht anzeigen
   return liste.sort((a, b) => b.punkte - a.punkte).slice(0, max);
+}
+
+/**
+ * Rang eines Eintrags in seiner Kategorie (1 = bester) oder null, wenn er nicht in den Top 20 ist.
+ */
+export async function rangInKategorie(id, kategorieId) {
+  const top = await ladeTopScores(kategorieId, 20);
+  const index = top.findIndex((e) => e.id === id);
+  return index === -1 ? null : index + 1;
 }
 
 /**
@@ -78,11 +89,16 @@ export async function sendeWarteschlange() {
       await speichereOnline(eintrag);
       await ausWarteschlangeEntfernen(eintrag.id);
       gesendet++;
-    } catch {
+    } catch (e) {
+      if (e.code === 'permission-denied') {
+        // Eintrag verletzt die Regeln und wird nie angenommen → nicht ewig die Warteschlange blockieren
+        await ausWarteschlangeEntfernen(eintrag.id);
+        continue;
+      }
       break; // kein Netz: Rest bleibt in der Warteschlange für später
     }
   }
-  return { gesendet, offen: liste.length - gesendet };
+  return { gesendet, offen: (await ladeWarteschlange()).length };
 }
 
 /**

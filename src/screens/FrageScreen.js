@@ -35,10 +35,10 @@ export default function FrageScreen({ navigation, route }) {
       punkte: quiz.punkte,
     };
     speichereResultat(resultat)
-      .then(() => true)
-      .catch(() => false) // Speichern fehlgeschlagen: Resultat trotzdem zeigen, nicht abstürzen
-      .then((gespeichert) =>
-        navigation.replace('Resultat', { ...resultat, rechenzeile: quiz.rechenzeile, gespeichert })
+      .then((eintrag) => eintrag.id) // id brauchen wir für das Senden an die Online-Bestenliste (S7)
+      .catch(() => null) // Speichern fehlgeschlagen: Resultat trotzdem zeigen, nicht abstürzen
+      .then((id) =>
+        navigation.replace('Resultat', { ...resultat, rechenzeile: quiz.rechenzeile, gespeichert: id != null, id })
       );
   }, [quiz.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
